@@ -92,7 +92,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Set notification variables on success
-      if: success()
+      if: env.CREATE_RELEASE == 'true' && success()
       run: |
         echo "NOTIFICATION_PRIORITY=0" >> $GITHUB_ENV
         echo "NOTIFICATION_MESSAGE=Built SeaBIOS v${{ env.SEABIOS_V }}" >> $GITHUB_ENV
