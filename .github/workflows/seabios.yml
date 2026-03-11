@@ -1,0 +1,126 @@
+name: SeaBIOS Check
+
+on:
+  # Set schedule to run every  hours
+  schedule:
+    - cron: '0 2 * * *'
+
+  # Allow to trigger action manually
+  workflow_dispatch:
+
+jobs:  
+  check_version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 1
+
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get -y install jq curl git build-essential uuid-dev nasm iasl dpkg python3
+
+    - name: Check versions
+      run: |
+        # Grab latest SeaBIOS release from official repostiory and latest compiled release version from this repostiory
+        SEABIOS_V=$(curl -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} https://api.github.com/repos/coreboot/seabios/tags | jq -r '.[0].name')
+        AVAIL_SEABIOS_V="$(curl -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} -s https://api.github.com/repos/ich777/mos-seabios-firmware/releases/latest | jq -r '.tag_name')"
+
+        # Check if one of the versions is empty
+        #if [[ -z "${SEABIOS_V}" || -z "${AVAIL_SEABIOS_V}" ]]; then
+        #  echo "Can't get versions"
+        #  exit 1
+        #fi
+
+        # Check versions
+        if [ "${SEABIOS_V}" == "${AVAIL_SEABIOS_V}" ]; then
+          echo "${AVAIL_SEABIOS_V} up to date!"
+          exit 0
+        fi
+
+        # Seabios
+        BUILDDIR=${{ github.workspace }}
+        PACKAGEDIR=$BUILDDIR/seabios_package
+        mkdir -p $PACKAGEDIR/usr/share/doc/mos-seabios-firmware $PACKAGEDIR/usr/share/qemu $PACKAGEDIR/DEBIAN
+        cd $BUILDDIR
+        git clone --branch $SEABIOS_V --single-branch --depth 1 https://git.seabios.org/seabios.git
+        cd $BUILDDIR/seabios
+        if [ ! -f /usr/bin/python ] ; then
+          ln -s /usr/bin/python3 /usr/bin/python
+        fi
+        make -j$(nproc --all)
+        cp $BUILDDIR/seabios/out/bios.bin $PACKAGEDIR/usr/share/qemu/bios.bin
+
+        # Add License
+        cp $BUILDDIR/seabios/COPYING.LESSER $PACKAGEDIR/usr/share/doc/mos-seabios-firmware/LICENSE
+
+        cat > $PACKAGEDIR/DEBIAN/control << EOF
+        Package: SeaBIOS-firmware
+        Version: ${SEABIOS_V##*-}-mos
+        Architecture: all
+        Maintainer: admin@minenet.at
+        Description: Custom SeaBIOS firmware build for MOS
+        EOF
+
+        cd $BUILDDIR
+        chmod -R 755 $PACKAGEDIR
+        dpkg-deb --build seabios_package mos-seabios-firmware_${SEABIOS_V##*-}_all.deb
+        md5sum $BUILDDIR/mos-seabios-firmware_${SEABIOS_V##*-}_all.deb | awk '{print $1}' > $BUILDDIR/mos-seabios-firmware_${SEABIOS_V##*-}_all.deb.md5
+
+        echo "SEABIOS_V=$SEABIOS_V" >> $GITHUB_ENV
+
+    - name: Create and Upload Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ env.SEABIOS_V }}
+        name: "${{ env.SEABIOS_V }}"
+        body: "SeaBIOS firmware MOS"
+        files: |
+          ${{ env.BUILDDIR }}/*.deb
+          ${{ env.BUILDDIR }}/*.deb.md5
+        overwrite_files: true
+        fail_on_unmatched_files: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set notification variables on success
+      if: success()
+      run: |
+        echo "NOTIFICATION_PRIORITY=0" >> $GITHUB_ENV
+        echo "NOTIFICATION_MESSAGE=Built SeaBIOS v${{ env.SEABIOS_V }}" >> $GITHUB_ENV
+
+    - name: Set notification variables on failure
+      if: failure()
+      run: |
+        echo "NOTIFICATION_PRIORITY=1" >> $GITHUB_ENV
+        echo "NOTIFICATION_MESSAGE=Failed to build SeaBIOS v${{ env.SEABIOS_V }}" >> $GITHUB_ENV
+
+    - name: Cleanup & Notification
+      if: always()
+      run: |
+        # Discord notification function
+        discord_push_notification() {
+          if [ $3 -ge 1 ]; then
+            COLOR=16711680
+          else
+            COLOR=65280
+          fi
+
+          data=$(cat <<EOF
+        {
+          "embeds": [{
+            "title": "${1}",
+            "description": "${2}",
+            "color": ${COLOR}
+          }]
+        }
+        EOF
+        )
+          curl -H "Content-Type: application/json" -d "$data" "${{ secrets.DISCORD_WEBHOOK_URL }}"
+        }
+
+        discord_push_notification "${{ github.workflow }}" "${{ env.NOTIFICATION_MESSAGE }}" "${{ env.NOTIFICATION_PRIORITY }}"
+        rm -rf ${{ github.workspace }}/* ${{ github.workspace }}/.*
