@@ -37,8 +37,11 @@ jobs:
 
         # Check versions
         if [ "${SEABIOS_V}" == "${AVAIL_SEABIOS_V}" ]; then
+          echo "CREATE_RELEASE=false" >> $GITHUB_ENV
           echo "${AVAIL_SEABIOS_V} up to date!"
           exit 0
+        else
+          echo "CREATE_RELEASE=true" >> $GITHUB_ENV
         fi
 
         # Seabios
@@ -74,6 +77,7 @@ jobs:
         echo "SEABIOS_V=$SEABIOS_V" >> $GITHUB_ENV
 
     - name: Create and Upload Release
+      if: env.CREATE_RELEASE == 'true' && success()
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.SEABIOS_V }}
