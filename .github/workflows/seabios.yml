@@ -79,8 +79,8 @@ jobs:
         name: "${{ env.SEABIOS_V }}"
         body: "SeaBIOS firmware MOS"
         files: |
-          ${{ env.BUILDDIR }}/*.deb
-          ${{ env.BUILDDIR }}/*.deb.md5
+          ${{ github.workspace }}/*.deb
+          ${{ github.workspace }}/*.deb.md5
         overwrite_files: true
         fail_on_unmatched_files: false
       env:
