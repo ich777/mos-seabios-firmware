@@ -30,10 +30,10 @@ jobs:
         AVAIL_SEABIOS_V="$(curl -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} -s https://api.github.com/repos/ich777/mos-seabios-firmware/releases/latest | jq -r '.tag_name')"
 
         # Check if one of the versions is empty
-        #if [[ -z "${SEABIOS_V}" || -z "${AVAIL_SEABIOS_V}" ]]; then
-        #  echo "Can't get versions"
-        #  exit 1
-        #fi
+        if [[ -z "${SEABIOS_V}" || -z "${AVAIL_SEABIOS_V}" ]]; then
+          echo "Can't get versions"
+          exit 1
+        fi
 
         # Check versions
         if [ "${SEABIOS_V}" == "${AVAIL_SEABIOS_V}" ]; then
