@@ -67,7 +67,7 @@ jobs:
 
         cd $BUILDDIR
         chmod -R 755 $PACKAGEDIR
-        chown -R root:root $PACKAGEDIR
+        sudo chown -R root:root $PACKAGEDIR
         dpkg-deb --build seabios_package mos-seabios-firmware_${SEABIOS_V##*-}_all.deb
         md5sum $BUILDDIR/mos-seabios-firmware_${SEABIOS_V##*-}_all.deb | awk '{print $1}' > $BUILDDIR/mos-seabios-firmware_${SEABIOS_V##*-}_all.deb.md5
 
