@@ -127,5 +127,7 @@ jobs:
           curl -H "Content-Type: application/json" -d "$data" "${{ secrets.DISCORD_WEBHOOK_URL }}"
         }
 
-        discord_push_notification "${{ github.workflow }}" "${{ env.NOTIFICATION_MESSAGE }}" "${{ env.NOTIFICATION_PRIORITY }}"
+        if [ "${{ env.CREATE_RELEASE }}" == "true" ] ; then
+          discord_push_notification "${{ github.workflow }}" "${{ env.NOTIFICATION_MESSAGE }}" "${{ env.NOTIFICATION_PRIORITY }}"
+        fi
         sudo rm -rf ${{ github.workspace }}/* ${{ github.workspace }}/.*
